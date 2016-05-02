@@ -21,7 +21,6 @@ list P=18F4620, F=INHX32, C=160, N=80, ST=OFF, MM=OFF, R=DEC
 
 ;;;;;;Vectors;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
 cblock 0x70
 		numb
 		dt1			;0x71		 addresses are used for the RTC module
@@ -109,7 +108,25 @@ cblock 0x70
 RS 	equ 2
 E 	equ 3
 Ca	equ 1
+#define	    ARMPWM1 LATC, 5
+#define	    ARMPWM2 LATC, 6
+#define	    ARMS1   PORTC, 7
+#define	    ARMS2    PORTB, 5
+#define	    USTRIG  LATB, 0
+#define	    ENCODER PORTB, 1
+#define	    KEY1    PORTB, 3
+#define	    KEY2    PORTB, 4
+#define	    US2E    PORTC, 0
+#define	    US1E    PORTA, 2
+#define	    US3E    PORTA, 1
+#define	    BDET    LATA, 3
+#define	    LS1	    PORTE, 2
+#define	    LS2	    PORTE, 1
+#define	    LS3	    PORTE, 0
+#define	    LS4	    PORTA, 5
+#define	    MOTORD  LATA, 4
 	
+
 variable _waitknt = 0
 	
 udata
@@ -226,7 +243,7 @@ stime	macro	tin tout
 	andwf	temp2, f
 	
 	endm
-
+;savetime macro	   times    timebcd
 
 sepdig	macro	   num
 	local	   loop3
@@ -264,6 +281,29 @@ loop1	movlw	   d'0'
 fin	
 	endm
 	
+savetime    macro   times   
+	    local   stloop1
+	    local   stloop2
+	    clrf    times
+	    movff   dig10, temp
+	    incf    temp
+	stloop1
+	    movlw   d'10'
+	    addwf   times
+	    decfsz  temp
+	    goto    stloop1
+	    movff   dig1, temp
+	    incf    temp
+	stloop2
+	    incf    times
+	    decfsz  temp
+	    goto    stloop2
+	    movlw   d'27'
+	    subwf   times
+	    endm
+	    
+	    
+	    
 Save_BarrelH macro   Loc, Fl
 	    movff   rightE, Loc
 	    clrf	   Fl
@@ -736,7 +776,7 @@ RTCinit
 		 call 	   i2c_common_setup
 	;	 rtc_resetAll
 		 
-	 call	set_rtc_time
+	; call	set_rtc_time
 	; call	 show_RTC
 	return	 
 Init     clrf      INTCON         ; No interrupts
@@ -800,7 +840,39 @@ Init     clrf      INTCON         ; No interrupts
 	;write	    Ready
 	 ;goto      mainloops
 	; goto	    steer_module
+	movlw	    d'50'
+	movwf	    time
 	goto	    main
+	clrf	    fsec
+	clrf	    fmin
+	clrf	    ssec
+	clrf	    smin
+	clrf	    optime
+	;call	    rtc_resetAll
+	;movlw	    " "
+	;call	    WR_DATA
+	;sepdig	    smin
+	;call	    WrtNum
+	;movlw	    " "
+	;call	    WR_DATA
+	;sepdig	    ssec
+	;call	    WrtNum
+	;call	    ClrLCD
+	;call	    fgetoptimef
+	;call	    calcoptime
+	;sepdig	    optime
+	;call	    WrtNum
+	;call	    sdelay
+	;call	    ClrLCD
+	;write	    Ready
+	call	    keywait
+	call	    fgetoptime
+	goto	    mainwait
+	call	    fgetoptimef
+	call	    calcoptime
+	sepdig	    optime
+	call	    WrtNum
+	
 	;write	    Ready
 	;write	    ftall
 	mainwait    goto mainwait
@@ -809,6 +881,7 @@ Init     clrf      INTCON         ; No interrupts
 	
 	
 	arm_drive
+	return
 	    ;bcf	    TRISC, 0
 	   ; bsf	    LATC, 0
 	;retract
@@ -822,12 +895,12 @@ Init     clrf      INTCON         ; No interrupts
 	;    bcf	    LATE, 0
 	    clrf    CCPR1L
 	    clrf    CCPR2L
-	    bsf	    LATC, 5
+	    bsf	    ARMPWM1
 	armwait1
-	    btfss   PORTC, 3
+	    btfss   ARMS1
 	    goto    armwait1
 	    goto    Atestf
-	 d1 bcf	    LATC, 5
+	 d1 bcf	    ARMPWM1
 	    call    setPWM
 	 
 	driveabit
@@ -836,35 +909,37 @@ Init     clrf      INTCON         ; No interrupts
 	    call    sdelay
 	    call    sdelay
 	    call    sdelay
+	    call    sdelay
+	    call    sdelay
 	   ; bcf	    LATC, 0
 	    clrf    CCPR1L
 	    clrf    CCPR2L
-	    bsf	    LATC, 6
+	    bsf	    ARMPWM2
 	    
 	armwait2
-	    btfss   PORTC, 7	
+	    btfss   ARMS2	
 	    goto    armwait2
 	    goto    Atestb
-	d2  bcf	    LATC, 6
+	d2  bcf	    ARMPWM2
 	   ; goto    rest
 	   call	    setPWM
 	return
 	
 	Atestf
-	    btfss   PORTC, 3
+	    btfss   ARMS1
 	    goto    armwait1
-	    btfss   PORTC, 3
+	    btfss   ARMS1
 	    goto    armwait1
-	    btfss   PORTC, 3
+	    btfss   ARMS1
 	    goto    armwait1
 	    goto    d1
 	    
 	Atestb
-	    btfss   PORTC, 7
+	    btfss   ARMS2
 	    goto    armwait2
-	    btfss   PORTC, 7
+	    btfss   ARMS2
 	    goto    armwait2
-	    btfss   PORTC, 7
+	    btfss   ARMS2
 	    goto    armwait2
 	    goto    d2
 	    
@@ -1072,11 +1147,11 @@ etloop	 call		tdelay
 	 goto		etloop
 
 main	
-	movlw	    b'10001111'
+	movlw	    b'11100110'
 	movwf	    TRISA
 	movlw	    b'11111110'
 	movwf	    TRISB
-	movlw	    b'10011000'
+	movlw	    b'10011001'
 	movwf	    TRISC
 	movlw	    b'0111'
 	movwf	    TRISE
@@ -1084,23 +1159,35 @@ main
 	clrf	    LATB
 	clrf	    LATC
 	clrf	    LATE
-	write		Ready
+	call	    setints
+	call	    RTCinit
+	call	    set_rtc_time
+	write	Ready
         call	keywait
-	;call	RTCinit
 	call	PWMinit
 	call	ClrLCD
 	 
 mainloop
-	 bcf	   LATA, 4
+	 bcf	   BDET
 	 call	   US_module
+	 clrf	   time
+	 call	   ClrLCD
+	 sepdig	   rightE
+	 call	   WrtNum2
+	 movlw	   d'205'
+	 cpfsgt	   rightE
 	 goto	   mainloop
+	 goto	   finish
 barrel_detected
 	 ;bsf	   LATB, 3
 	 ;btfsc	   PORTC, 7
 	 ;bsf	   LATB, 4
-	 bsf	   LATA, 4
+	 bsf	   BDET
 	 btfss	   bt, 0
 	 call	   addB
+	 call	   sdelay
+	 call	   sdelay
+	 call	   sdelay
 	 bsf	   bt, 0
 	 movlw	   d'7'
 	 cpfseq	   numBar
@@ -1109,24 +1196,21 @@ barrel_detected
 
 keywait  
 	 call	   sdelay
-kloop	 btfss	   PORTB, 4
+kloop	 btfss	   KEY1
 	 goto	   kloop
-kloop2
-	 btfsc	   PORTB, 4
-	 goto	   kloop2
 	 return
 addB	
 	 incf	   numBar
 	 goto	   loopUS2
 tallHandle
 	 incf	   tallB
-	 btfsc	   PORTA, 0
+	 btfsc	   LS1
 	 incf	   Full
-	 btfsc	   PORTA, 1
+	 btfsc	   LS3
 	 incf	   Half
-	 btfss	   PORTA, 1
+	 btfss	   LS3
 	 incf	   Empty
-	 btfsc	   PORTA, 0
+	 btfsc	   LS1
 	 decf	   Half
 	 bsf	   bheight, 7
 	 call	   find_CB
@@ -1135,13 +1219,13 @@ tallHandle
 shortHandle
 	 bcf	   bheight, 7
 	 incf	   shortB
-	 btfsc	   PORTA, 2
+	 btfsc	   LS2
 	 incf	   Full
-	 btfsc	   PORTA, 3
+	 btfsc	   LS4
 	 incf	   Half
-	 btfss	   PORTA, 3
+	 btfss	   LS4
 	 incf	   Empty
-	 btfsc	   PORTA, 2
+	 btfsc	   LS2
 	 decf	   Half
 	 call	   find_CB
 	 return
@@ -1160,74 +1244,119 @@ find_CB
 	 goto	   sb6
 	 btfss	   currentB, 6
 	 goto	   sb7
+s1l
+	 Save_BarrelL	b1L, b1Li
+	 return
+s1h
+	 Save_BarrelH	b1L, b1Li
+	 return
+s2l
+	 Save_BarrelL	b2L, b2Li
+	 return
+s2h
+	 Save_BarrelH	b2L, b2Li
+	 return
+s3l
+	 Save_BarrelL	b3L, b3Li
+	 return
+s3h
+	 Save_BarrelH	b3L, b3Li
+	 return
+s4l
+	 Save_BarrelL	b4L, b4Li
+	 return
+s4h
+	 Save_BarrelH	b4L, b4Li
+	 return
+s5l
+	 Save_BarrelL	b5L, b5Li
+	 return
+s5h
+	 Save_BarrelH	b5L, b5Li
+	 return
+s6l
+	 Save_BarrelL	b6L, b6Li
+	 return
+s6h
+	 Save_BarrelH	b6L, b6Li
+	 return
+s7l
+	 Save_BarrelL	b7L, b7Li
+	 return
+s7h
+	 Save_BarrelH	b7L, b7Li
+	 return
 
 	 
 sb1	 bsf	   currentB, 0
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 0
 	 btfss	   bheight, 0
-	 Save_BarrelL	b1L, b1Li
+	 call	   s1l
 	 btfsc	   bheight, 0 
-	 Save_BarrelH	b1L, b1Li
+	 call	   s1h
 	 return
 sb2	 bsf	   currentB, 1
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 1
 	 btfss	   bheight, 1
-	 Save_BarrelL	b2L, b2Li
+	 call	   s2l
 	 btfsc	   bheight, 1 
-	 Save_BarrelH	b2L, b2Li
+	 call	   s2h
 	 return
 sb3	 bsf	   currentB, 2
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 2
 	 btfss	   bheight, 2
-	 Save_BarrelL	b3L, b3Li
+	 call	   s3l
 	 btfsc	   bheight, 2 
-	 Save_BarrelH	b3L, b3Li
+	 call	   s3h
 	 return
 sb4	 bsf	   currentB, 3
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 3
 	 btfss	   bheight, 3
-	 Save_BarrelL	b4L, b4Li
+	 call	   s4l
 	 btfsc	   bheight, 3 
-	 Save_BarrelH	b4L, b4Li
+	 call	   s4h
 	 return
 sb5	 bsf	   currentB, 4
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 4
 	 btfss	   bheight, 4
-	 Save_BarrelL	b5L, b5Li
+	 call	   s5l
 	 btfsc	   bheight, 4 
-	 Save_BarrelH	b5L, b5Li
+	 call	   s5h
 	 return
 sb6	 bsf	   currentB, 5
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 5
 	 btfss	   bheight, 5
-	 Save_BarrelL	b6L, b6Li
+	 call	   s6l
 	 btfsc	   bheight, 5 
-	 Save_BarrelH	b6L, b6Li
+	 call	   s6h
 	 return
 sb7	 bsf	   currentB, 6
 	 btfsc	   bheight, 7
 	 bsf	   bheight, 6
 	 btfss	   bheight, 6
-	 Save_BarrelL	b7L, b7Li
+	 call	   s7l
 	 btfsc	   bheight, 6 
-	 Save_BarrelH	b7L, b7Li
+	 call	   s7h
 	 return
-
-finish	; call	   fgetoptime
-	; call	   keywait
-	 bcf	   LATC, 4
+wshort
+	 write	    fshort
+	 return
+wtall
+	 write	    ftall
+	 return
+finish	 
+	 bcf	   BDET
 	 clrf	    WREG
 	 movwf	    CCPR1L
 	 movwf	    CCPR2L
 	 call	   ClrLCD
-	 sepdig	   bheight
-	 call	   WrtNum
+	 call	   fgetoptime
 	 call	   keywait
 	 call	   ClrLCD
 	 write	   Done
@@ -1245,19 +1374,9 @@ finish	; call	   fgetoptime
 	 call	   sdelay	 
 	 call	   sdelay	 
 	 call	   sdelay
-dwait	 btfss	   PORTB, 1
-	goto	   dwait
-	
-finish2	call	   ClrLCD
-	write	   Done5
-	sepdig	   rightE
-	call	   WrtNum
-	call	   WrtNum
-	call	   sdelay	 
-	 call	   sdelay	 
-	 call	   sdelay
-dwait2	 btfss	   PORTB, 1
-	 goto	   dwait2
+	 call	   keywait
+
+	 
 
 finish3	;movlw	    b'11111111'
 	; movwf	    bheight
@@ -1271,13 +1390,14 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b1Li
 	 write	    Location
 	 sepdig	    b1L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 0
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 0
+	 call	    wshort
 	 call	    keywait
 	 
 	 btfss	    currentB, 1
@@ -1290,13 +1410,14 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b2Li
 	 write	    Location
 	 sepdig	    b2L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 1
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 1
+	 call	    wshort
 	 call	    keywait
 	 
 	 btfss	    currentB, 2
@@ -1309,13 +1430,14 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b3Li
 	 write	    Location
 	 sepdig	    b3L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 2
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 2
+	 call	    wshort
 	 call	    keywait
 	 
 	 btfss	    currentB, 3
@@ -1328,13 +1450,14 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b4Li
 	 write	    Location
 	 sepdig	    b4L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 3
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 3
+	 call	    wshort
 	 call	    keywait
 	 
 	 btfss	    currentB, 4
@@ -1347,13 +1470,14 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b5Li
 	 write	    Location
 	 sepdig	    b5L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 4
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 4
+	 call	    wshort
 	 call	    keywait
 	 
 	 btfss	    currentB, 5
@@ -1366,13 +1490,14 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b6Li
 	 write	    Location
 	 sepdig	    b6L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 5
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 5
+	 call	    wshort
 	 call	    keywait
 	 
 	 btfss	    currentB, 6
@@ -1385,14 +1510,18 @@ finish3	;movlw	    b'11111111'
 	 dFull	    b7Li
 	 write	    Location
 	 sepdig	    b7L	 
-	 call	    WrtNum
+	 call	    WrtNum2
 	 call	    keywait
 	 call	    ClrLCD
 	 write	    Hob
 	 btfsc	    bheight, 6
-	 write	    ftall
-	 write	    fshort
+	 call	    wtall
+	 btfss	    bheight, 6
+	 call	    wshort
 	 call	    keywait
+	 call	    ClrLCD
+	 sepdig	    bheight
+	 call	    WrtNum
 	 goto	    finish
 shend	 call	    ClrLCD
 	 write	    Nob
@@ -1408,11 +1537,12 @@ setints	 clrf	   INTCON2
 	 bsf	   INTCON, 7
 	 clrf	   PIR1
 	 clrf	   PIR2
-	 bsf	   INTCON, 4
+	 bsf	   INTCON3, 3	  ;Enable interrupts on encoder pin
 	 bsf	   INTCON3, 4
-	 bsf	   INTCON2, 6
+	 bsf	   INTCON2, 6     ;Set to Active on posedge
 	 bsf	   INTCON2, 4
 	 return
+	 
 show_gyro
 	 
 		
@@ -1537,10 +1667,59 @@ fgetoptime
 		call	WR_DATA
 		movf	dig1, W
 		call	WR_DATA
+		return
+    fgetoptimes
+
+		    rtc_read	0x01
+		    savetime    smin
+
+		    ;Get seconds
+		    rtc_read	0x00
+		    savetime    ssec
+		    return
+fgetoptimef
 		
+		rtc_read	0x01
+		savetime    fmin
+		
+		;Get seconds
+		rtc_read	0x00
+		savetime    fsec
 		;call	OneS			;Delay for exactly one seconds and read DS1307 again
 		
 		return
+calcoptime
+		clrf	optime
+		movff	smin, temp
+		movff	ssec, temp2
+		movf	temp, W
+		subwf	fmin
+		incf	fmin
+	cloop1
+		movlw	d'60'
+		addwf	optime
+		decfsz	fmin
+		goto	cloop1
+		movf	temp2, W
+		cpfsgt	fsec
+		goto	cloop2
+		movf	temp2, W
+		subwf	fsec
+		movf	fsec, W
+		addwf	optime
+		goto	cloop3
+	cloop2
+		movf	fsec
+		subwf	temp2
+		movf	temp2
+		subwf	optime
+		movlw	d'60'
+		;addwf	optime
+	cloop3
+		movlw	d'60'
+		subwf	optime
+		return
+		
 
 ;***************************************
 ; Setup RTC with time defined by user
@@ -1557,8 +1736,8 @@ set_rtc_time
 		rtc_set	0x04,	B'00000110'		; Date
 		rtc_set	0x03,	B'00000010'		; Day
 		rtc_set	0x02,	B'00000001'		; Hours
-		rtc_set	0x01,	B'00000000'		; Minutes
-		rtc_set	0x00,	B'00000000'		; Seconds
+		rtc_set	0x01,	B'00000001'		; Minutes
+		rtc_set	0x00,	B'01000001'		; Seconds
 	
 		return
 
@@ -1623,10 +1802,10 @@ PWMinit
 	 movlw	    d'99'
 	 movwf	    PR2
 	 ;movff	    pwm, WREG
-	 movlw	    d'100'
+	 movlw	    d'93'
 	 movwf	    CCPR2L
 	 movwf	    pwmR
-	 movlw	    d'100'
+	 movlw	    d'90'
 	 movwf	    CCPR1L
 	 movwf	    pwmL
 	 
@@ -1739,58 +1918,34 @@ aendUS
 	 goto	    aloopUS
 US_module
 
-us0c
-	 movlw	    " "
-	 call	    WR_DATA
-	 movlw	    "0"
-	 call	    WR_DATA
-	 movlw	    "0"
-	 call	    WR_DATA
-	 movlw	    "0"
-	 call	    WR_DATA
-loopUS	;call	    sdelay
-	 bcf	    PORTE, 1
+loopUS	
+	 bcf	    US1E	;Reset pins
 	 bcf	    USOF, 0
-	 call	   tdelay
-	 movlw	    d'0'
-	 movwf	    time
-	 bsf	    LATA, 5
-	 movlw	    d'3'
+	 call	    tdelay
+	 bsf	    USTRIG	;Trigger pulse
+	 movlw	    d'3'	;Wait
 pause	 decfsz	    WREG, f
 	 goto	    pause
-	 bcf	    LATA, 5
-w1	 btfsc	    PORTE, 1
+	 bcf	    USTRIG
+w1	 btfsc	    US1E	;Poll for echo high
 	 goto	    w2
 	 goto	    w1
-w2	 btfss	    PORTE, 1
+w2	 btfss	    US1E	;Poll for echo low
 	 goto	    endUS
-	 bcf	    LATC, 5	 
+	; bcf	    LATC, 5	 
 	 call	    check_sense
 	 incf	    time
-	 movlw	    d'255'
+	 movlw	    d'34'	;Check if too far
 	 cpfseq	    time
 	 goto	    w2
-	 bsf	    USOF, 0
-	 goto	    loopUS1
-endUS	 btfsc	    USOF, 0	
-	 goto	    loopUS
-	 movlw	    d'30'
-	 call	    sdelay
-	 ;call	    ClrLCD
-	 ;sepdig	    time
-	 ;call	    WrtNum
+	 goto	    loopUS1	;Move on
+	
+endUS	 
+	 movlw	    d'35'
 	 cpfsgt	    time
-	 
-	 goto	    arm_drive
+	 goto	    arm_drive	;Respond to column or barrel
 	 goto	    loopUS1
-	 ;goto	    loop_US
-	; return
-	 ;bsf	    LATC, 5
-	; call       barrel_detected
-	; movlw	    d'30'
-	 ;cpfslt	    time
-	 ;bcf	    bt, 0
-	; call	    sdelay
+	
 us1c	 call	    ClrLCD
 	 movlw	    "0"
 	 call	    WR_DATA
@@ -1799,22 +1954,22 @@ us1c	 call	    ClrLCD
 	 movlw	    "0"
 	 call	    WR_DATA
 	
-loopUS1	 bcf	    PORTE, 0
+loopUS1	 bcf	    US2E
 	 bcf	    USOF, 1
 	 call	   tdelay
 	 movlw	    d'0'
 	 movwf	    time
-	 bsf	    LATA, 5
+	 bsf	    USTRIG
 	 movlw	    d'3'
 pause1	 decfsz	    WREG, f
 	 goto	    pause1
-	 bcf	    LATA, 5
-w11	 btfsc	    PORTE, 0
+	 bcf	    USTRIG
+w11	 btfsc	    US2E
 	 goto	    w21
 	 goto	    w11
-w21	 btfss	    PORTE, 0
+w21	 btfss	    US2E
 	 goto	    endUS1
-	 bcf	    LATC, 4	 
+	;bcf	    LATC, 4	 
 	 call	    check_sense
 	 incf	    time
 	 movlw	    d'255'
@@ -1845,22 +2000,22 @@ us2c
 	 ;call	    WR_DATA
 	 ;movlw	    "0"
 	 ;call	    WR_DATA
-loopUS2	 bcf	    PORTE, 2
+loopUS2	 bcf	    US3E
 	 bcf	    USOF, 2
 	 call	   tdelay
 	 movlw	    d'0'
 	 movwf	    time
-	 bsf	    LATA, 5
+	 bsf	    USTRIG
 	 movlw	    d'3'
 pause2	 decfsz	    WREG, f
 	 goto	    pause2
-	 bcf	    LATA, 5
-w12	 btfsc	    PORTE, 2
+	 bcf	    USTRIG
+w12	 btfsc	    US3E
 	 goto	    w22
 	 goto	    w12
-w22	 btfss	    PORTE, 2
+w22	 btfss	    US3E
 	 goto	    endUS2
-	 bcf	    LATC, 7	 
+	; bcf	    LATC, 7	 
 	 call	    check_sense
 	 incf	    time
 	 movlw	    d'255'
@@ -1874,7 +2029,7 @@ endUS2	 btfsc	    USOF, 2
 	; call	    ClrLCD
 	; call	    WrtNum
 	 call	    sdelay
-	 bcf	    LATC, 7
+	; bcf	    LATC, 7
 	 movlw	    d'20' 
 	 cpfsgt	    time
 	 ;bsf	    LATC, 7
@@ -1900,16 +2055,20 @@ senseloop
 	return
 	
 enchandle
-	btfsc	INTCON, 1
+	btfsc	INTCON3, 0
 	call	rhandle
 	btfsc	INTCON3, 1
 	call	lhandle
 	return
 rhandle
-	bcf	INTCON, 1
+	bcf	INTCON3, 0
 	incf	rightE
-	incf	rightE
-	incf	rightE
+	;incf	rightE
+	;incf	boolENC
+	;movlw	d'2'
+	;cpfseq	boolENC
+	;goto	encend
+	;goto	encextra
 	btfss	boolENC, 0
 	goto	encextra
 	bcf	boolENC, 0
@@ -1917,7 +2076,7 @@ encend
 	return
 encextra
 	incf	rightE
-	bsf	boolENC, 0
+	incf	boolENC
 	goto	encend
 	
 lhandle	
@@ -1953,11 +2112,11 @@ LLD_LOOP
 WrtNum2	    bcf	    STATUS,C
 	    movf    dig3, W
 	    addwf   dig3
-	   ; carry   dig3	    
+	    carry   dig3	    
 	   ; bcf	    STATUS,C
 	    movf    dig2, W
 	    addwfc  dig2
-	   ; carry   dig2
+	    carry   dig2
 	    movf    dig12, W
 	    addwfc  dig12    
 	    call    wdig1
@@ -1975,6 +2134,5 @@ WrtNum
 	    call    WrtLCD
 	    call    wdig3
 	    call    WrtLCD
-	    return
-	
+	    return	
 END	 
